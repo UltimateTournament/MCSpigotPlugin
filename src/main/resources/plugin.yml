@@ -1,0 +1,13 @@
+name: TangiaSpigot
+version: '${version}'
+main: co.tangia.spigot.TangiaSpigot
+api-version: 1.19
+prefix: TANGIA
+authors: [ Tangia ]
+description: Tangia for Spigot!
+website: https://tangia.co
+commands:
+  tangia:
+    description: This is a test command
+    usage: /tangia [login/logout] [login_code]
+    permission: tangia.*
