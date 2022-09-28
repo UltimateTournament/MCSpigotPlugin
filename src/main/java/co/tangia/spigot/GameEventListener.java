@@ -11,9 +11,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.UUID;
 
-public class TangiaEventListener implements Listener {
-    private TangiaSpigot spigot;
-    public TangiaEventListener (TangiaSpigot spigot) {
+public class GameEventListener implements Listener {
+    private final TangiaPlugin spigot;
+    public GameEventListener(TangiaPlugin spigot) {
         this.spigot = spigot;
     }
 
@@ -25,11 +25,11 @@ public class TangiaEventListener implements Listener {
         }
         ModPersistenceData.PlayerSession session = ModPersistence.data.sessions().get(id);
         if (session != null) {
-            TangiaSDK sdk = new TangiaSDK(spigot.gameID, "0.0.1", spigot.tangiaUrl, id, spigot);
+            TangiaSDK sdk = new TangiaSDK(spigot.gameID, "0.0.1", spigot.tangiaUrl, eventHandler);
             sdk.setSessionKey(session.sessionToken());
             spigot.playerSDKs.put(id, sdk);
             sdk.startEventPolling();
-            System.out.println("Tangia session restored for Player with UUID {} " +id.toString());
+            System.out.println("Tangia session restored for Player with UUID {} " + id);
             event.getPlayer().sendMessage("We've logged you back into your Tangia account");
         }
     }

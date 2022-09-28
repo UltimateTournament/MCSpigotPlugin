@@ -1,6 +1,5 @@
 package co.tangia.sdk;
 
-import co.tangia.spigot.TangiaSpigot;
 import com.google.gson.Gson;
 import dev.failsafe.RetryPolicy;
 import dev.failsafe.retrofit.FailsafeCall;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class TangiaSDK {
@@ -30,26 +28,22 @@ public class TangiaSDK {
     private final ArrayBlockingQueue<EventResult> eventAckQueue = new ArrayBlockingQueue<>(100);
     private final Set<String> handledEventIds = new HashSet<>();
     private final TangiaApi api;
+    private final EventHandler eventHandler;
 
-    private UUID playerUUID;
-
-    public TangiaSDK(String gameID, String gameVersion) {
-        this(gameID, gameVersion, PROD_URL, null, null);
+    public TangiaSDK(String gameID, String gameVersion, EventHandler eventHandler) {
+        this(gameID, gameVersion, PROD_URL, eventHandler);
     }
 
-    private TangiaSpigot spigot;
-
-    public TangiaSDK(String gameID, String gameVersion, String baseUrl, UUID playerUUID, TangiaSpigot spigot) {
+    public TangiaSDK(String gameID, String gameVersion, String baseUrl, EventHandler eventHandler) {
         this.gameID = gameID;
         this.gameVersion = gameVersion;
         this.api = createApi(baseUrl);
-        this.playerUUID = playerUUID;
-        this.spigot = spigot;
+        this.eventHandler = eventHandler;
     }
 
     public void login(String creatorCode) throws IOException, InvalidLoginException {
-        Call call = api.login(new GameLoginReq(gameID, creatorCode));
-        Response<GameLoginResp> res = execWithRetries(call);
+        var call = api.login(new GameLoginReq(gameID, creatorCode));
+        var res = execWithRetries(call);
         if (!res.isSuccessful() || res.body() == null)
             throw new InvalidLoginException();
         this.sessionKey = res.body().SessionID;
@@ -66,7 +60,7 @@ public class TangiaSDK {
     }
 
     public void ackEvents(EventResult[] results) throws IOException, InvalidRequestException {
-        Call call = api.ackEvents(this.sessionKey, new AckInteractionEventsReq(results));
+        var call = api.ackEvents(this.sessionKey, new AckInteractionEventsReq(results));
         Response<Void> res = execWithRetries(call);
         if (!res.isSuccessful())
             throw new InvalidRequestException();
@@ -88,12 +82,12 @@ public class TangiaSDK {
 
     private <T> Response<T> execWithRetries(Call<T> call) throws IOException {
         RetryPolicy<Response<T>> retryPolicy = RetryPolicy.ofDefaults();
-        FailsafeCall failsafeCall = FailsafeCall.with(retryPolicy).compose(call);
+        var failsafeCall = FailsafeCall.with(retryPolicy).compose(call);
         return failsafeCall.execute();
     }
 
     private static TangiaApi createApi(String baseUrl) {
-        Retrofit retrofit = new Retrofit.Builder()
+        var retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
@@ -113,7 +107,7 @@ public class TangiaSDK {
             } catch (InterruptedException ex) {
                 System.out.println("WARN: got interrupted, will stop event polling");
             }
-            Call stopCall = api.notifyStopPlaying(sessionKey);
+            var stopCall = api.notifyStopPlaying(sessionKey);
             try {
                 Response<Void> stopResp = execWithRetries(stopCall);
                 if (!stopResp.isSuccessful())
@@ -124,9 +118,9 @@ public class TangiaSDK {
         }
 
         private void pollEvents() throws InterruptedException {
-            LinkedList acks = new LinkedList<EventResult>();
+            var acks = new LinkedList<EventResult>();
             while (true) {
-                EventResult ack = eventAckQueue.poll();
+                var ack = eventAckQueue.poll();
                 if (ack == null)
                     break;
                 acks.add(ack);
@@ -139,19 +133,25 @@ public class TangiaSDK {
                     System.out.println("WARN: couldn't ack events: " + e);
                 }
             }
-            Call eventsCall = api.pollEvents(sessionKey, new InteractionEventsReq(gameVersion));
+            var eventsCall = api.pollEvents(sessionKey, new InteractionEventsReq(gameVersion));
             Response<InteractionEventsResp> eventsResp = null;
             try {
                 eventsResp = execWithRetries(eventsCall);
             } catch (IOException e) {
                 System.out.println("WARN: error when polling events: " + e.getMessage());
+                return;
             }
-            if (eventsResp == null || !eventsResp.isSuccessful()) {
+            if (!eventsResp.isSuccessful()) {
                 System.out.println("WARN: couldn't get events");
+                if (eventsResp.code() == 401) {
+                    System.out.println("WARN: session became invalid - stopping event polling");
+                    stopped = true;
+                    return;
+                }
                 Thread.sleep(200);
                 return;
             }
-            InteractionEventsResp body = eventsResp.body();
+            var body = eventsResp.body();
             if (body == null || body.Events == null || body.Events.length == 0) {
                 System.out.println("DEBUG: no events");
                 Thread.sleep(50);
@@ -163,53 +163,10 @@ public class TangiaSDK {
                 if (handledEventIds.contains(e.EventID))
                     continue;
                 handledEventIds.add(e.EventID);
-                // Process the interaction event
-                Gson gson = new Gson();
-                EventComponent event = gson.fromJson(e.Metadata, EventComponent.class);
                 try {
-                    if (event.commands != null) {
-                        for (CommandComponent cmd : event.commands) {
-                            Player player = Bukkit.getPlayer(playerUUID);
-                            if (player == null) {
-                                ackEventAsync(new EventResult(e.EventID, false, "player not in game"));
-                                continue;
-                            }
-                            cmd = new CommandComponent(cmd.command, e.BuyerName, player.getName().toString(), cmd.delayTicks);
-                            System.out.println("Running command: " + cmd.getCommand());
-                            String commandString = cmd.getCommand();
-                            Bukkit.getScheduler().runTaskLater(spigot, new Runnable() {
-                                @Override
-                                public void run() {
-                                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), commandString);
-                                }
-                            }, cmd.delayTicks);
-                        }
-                    }
-                    if (event.messages != null) {
-                        for (MessageComponent msg : event.messages) {
-                            Player player = Bukkit.getPlayer(playerUUID);
-                            if (player == null) {
-                                ackEventAsync(new EventResult(e.EventID, false, "player not in game"));
-                                continue;
-                            }
-                            String msgString = msg.message.replaceAll("\\$DISPLAYNAME", e.BuyerName).replaceAll("\\$PLAYERNAME", player.getName());
-                            System.out.println("Running message: " + msgString);
-                            boolean sendToAll = msg.toAllPlayers;
-                            Bukkit.getScheduler().runTaskLater(spigot, new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (sendToAll) {
-                                        Bukkit.broadcastMessage(msgString);
-                                        return;
-                                    }
-                                    player.sendMessage(msgString);
-                                }
-                            }, msg.delayTicks);
-                        }
-                    }
-                    ackEventAsync(new EventResult(e.EventID, true, null));
+                    eventHandler.handleTangiaEvent(e);
                 } catch (Exception ex) {
-                    ackEventAsync(new EventResult(e.EventID, false, "exception"));
+                    System.out.println("WARN: error when polling events: " + ex.getMessage());
                 }
             }
         }
