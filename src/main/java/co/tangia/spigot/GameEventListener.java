@@ -1,20 +1,13 @@
 package co.tangia.spigot;
 
-import co.tangia.sdk.InvalidLoginException;
-import co.tangia.sdk.TangiaSDK;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 
 public class GameEventListener implements Listener {
     private final TangiaPlugin spigot;
-    private static final Logger LOGGER = LoggerFactory.getLogger(GameEventListener.class.getName());
 
     public GameEventListener(TangiaPlugin spigot) {
         this.spigot = spigot;

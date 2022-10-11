@@ -42,9 +42,7 @@ public final class TangiaPlugin extends JavaPlugin {
         TangiaSDK sdk = new TangiaSDK(this.tangiaUrl, "1.19.2", "MC Spigot", (errMsg)-> {
             player.sendMessage("Your Tangia login expired");
             logout(player, true);
-        }, (s, event)->{
-            processEvent(player, s, event);
-        });
+        }, (s, event)-> processEvent(player, s, event));
         sdk.login(key);
         synchronized (this.playerSDKs) {
             if (this.playerSDKs.get(playerID) != null)
@@ -75,7 +73,7 @@ public final class TangiaPlugin extends JavaPlugin {
                         firstCommand = false;
                     }
                     delayAck = true;
-                    cmd = new CommandComponent(cmd.command, e.BuyerName, player.getName().toString(), cmd.delayTicks);
+                    cmd = new CommandComponent(cmd.command, e.BuyerName, player.getName(), cmd.delayTicks);
                     System.out.println("Running command: " + cmd.getCommand());
                     String commandString = cmd.getCommand();
                     Bukkit.getScheduler().runTaskLater(this, () -> {
@@ -117,6 +115,7 @@ public final class TangiaPlugin extends JavaPlugin {
             TangiaSDK sdk = playerSDKs.get(id);
             if (sdk != null) {
                 sdk.stopEventPolling();
+                sdk.logout();
                 playerSDKs.remove(id);
             }
             if (removeSession) {
