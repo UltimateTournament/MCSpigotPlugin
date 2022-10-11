@@ -1,5 +1,13 @@
 package co.tangia.sdk;
 
 public class InteractionEventsResp {
-    InteractionEvent[] Events;
+
+    public static class ActionExecution {
+        public String ID;
+        public String Trigger;
+        public InteractionEvent Body;
+        public String Ttl;
+    }
+
+    ActionExecution[] ActionExecutions;
 }

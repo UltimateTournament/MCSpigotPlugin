@@ -1,4 +1,4 @@
-package co.tangia.sdk;
+package co.tangia.spigot;
 
 public class CommandComponent {
     public String command;

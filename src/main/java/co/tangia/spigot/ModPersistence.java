@@ -1,4 +1,4 @@
-package co.tangia.sdk;
+package co.tangia.spigot;
 
 import com.google.gson.Gson;
 
