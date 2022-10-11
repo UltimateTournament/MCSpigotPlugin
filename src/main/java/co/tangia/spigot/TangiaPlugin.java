@@ -5,7 +5,6 @@ import co.tangia.sdk.ModPersistence;
 import co.tangia.sdk.ModPersistenceData;
 import co.tangia.sdk.TangiaSDK;
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -13,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public final class TangiaSpigot extends JavaPlugin {
+public final class TangiaPlugin extends JavaPlugin {
     public final String tangiaUrl = "STAGING".equals(System.getenv("TANGIA_ENV")) ? TangiaSDK.STAGING_URL : TangiaSDK.PROD_URL;
     public final String gameID = System.getenv("GAME_ID") == null ? TangiaSDK.GAME_ID : System.getenv("GAME_ID");
 
@@ -24,7 +23,7 @@ public final class TangiaSpigot extends JavaPlugin {
         // Plugin startup logic
         System.out.println("Tangia plugin starting");
         this.getCommand("tangia").setExecutor(new TangiaCommand(this));
-        getServer().getPluginManager().registerEvents(new TangiaEventListener(this), this);
+        getServer().getPluginManager().registerEvents(new GameEventListener(this), this);
         ModPersistence.load();
     }
 
@@ -41,7 +40,7 @@ public final class TangiaSpigot extends JavaPlugin {
             throw new InvalidLoginException();
         }
         UUID playerID = player.getUniqueId();
-        TangiaSDK sdk = new TangiaSDK(this.gameID, "0.0.1", this.tangiaUrl, playerID, this);
+        TangiaSDK sdk = new TangiaSDK(this.gameID, "0.0.1", this.tangiaUrl, eventHandler);
         sdk.login(key);
         synchronized (this.playerSDKs) {
             if (this.playerSDKs.get(playerID) != null)

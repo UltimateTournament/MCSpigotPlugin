@@ -1,9 +1,6 @@
 package co.tangia.spigot;
 
 import co.tangia.sdk.InvalidLoginException;
-import co.tangia.sdk.ModPersistence;
-import co.tangia.sdk.ModPersistenceData;
-import co.tangia.sdk.TangiaSDK;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -14,8 +11,8 @@ import java.util.UUID;
 
 public class TangiaCommand implements CommandExecutor {
     // This method is called, when somebody uses our command
-    public TangiaSpigot spigot;
-    public TangiaCommand(TangiaSpigot spigot) {
+    public TangiaPlugin spigot;
+    public TangiaCommand(TangiaPlugin spigot) {
         this.spigot = spigot;
     }
     @Override

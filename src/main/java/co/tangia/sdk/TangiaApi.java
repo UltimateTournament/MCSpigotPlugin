@@ -5,9 +5,12 @@ import retrofit2.http.Body;
 import retrofit2.http.Header;
 import retrofit2.http.POST;
 
+//TODO change to v2
 public interface TangiaApi {
     @POST("/game/login")
     Call<GameLoginResp> login(@Body GameLoginReq req);
+    @POST("/game/logout")
+    Call<GameLoginResp> logout(@Body GameLoginReq req);
 
     @POST("/game/interactions/poll")
     Call<InteractionEventsResp> pollEvents(@Header("Authorization") String auth, @Body InteractionEventsReq req);
