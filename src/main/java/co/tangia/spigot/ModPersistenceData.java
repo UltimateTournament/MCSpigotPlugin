@@ -1,4 +1,4 @@
-package co.tangia.sdk;
+package co.tangia.spigot;
 
 import java.util.HashMap;
 import java.util.Objects;

@@ -1,21 +1,23 @@
 package co.tangia.sdk;
 
 import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.Header;
-import retrofit2.http.POST;
+import retrofit2.http.*;
 
 public interface TangiaApi {
-    @POST("/game/login")
-    Call<GameLoginResp> login(@Body GameLoginReq req);
+    @POST("/v2/actions/login")
+    Call<LoginResp> login(@Body IntegrationLoginReq req);
 
-    @POST("/game/interactions/poll")
-    Call<InteractionEventsResp> pollEvents(@Header("Authorization") String auth, @Body InteractionEventsReq req);
+    @POST("/v2/actions/logout")
+    Call<Void> logout(@Header("Authorization") String auth);
 
-    @POST("/game/interactions/ack")
-    Call<Void> ackEvents(@Header("Authorization") String auth, @Body AckInteractionEventsReq req);
+    @GET("/v2/actions/pending")
+    Call<InteractionEventsResp> pollEvents(@Header("Authorization") String auth);
 
-    @POST("/game/interactions/stop_playing")
-    Call<Void> notifyStopPlaying(@Header("Authorization") String auth);
+    @POST("/v2/actions/ack/{actionExecutionID}")
+    Call<Void> ackEvent(@Header("Authorization") String auth, @Path("actionExecutionID") String actionExecutionID);
+
+    @POST("/v2/actions/nack/{actionExecutionID}")
+    Call<Void> nackEvent(@Header("Authorization") String auth, @Path("actionExecutionID") String actionExecutionID);
+
 }
 
