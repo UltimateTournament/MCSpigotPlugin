@@ -18,8 +18,19 @@ import java.util.UUID;
 
 public final class TangiaPlugin extends JavaPlugin {
     public final String tangiaUrl = "STAGING".equals(System.getenv("TANGIA_ENV")) ? TangiaSDK.STAGING_URL : TangiaSDK.PROD_URL;
-    private static final Logger LOGGER = LoggerFactory.getLogger(TangiaPlugin.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(TangiaPlugin.class.getCanonicalName());
     public final Map<UUID, TangiaSDK> playerSDKs = new HashMap<>();
+
+    static {
+        if (System.getenv("TANGIA_LOGS") == null) {
+            LOGGER.info("Disabling logging for Tangia. To re-enable set the env var TANGIA_LOGS=1");
+            try {
+                org.apache.logging.log4j.core.config.Configurator.setLevel("co.tangia", org.apache.logging.log4j.Level.ERROR);
+            } catch (Exception ex) {
+                LOGGER.error("failed to set log level", ex);
+            }
+        }
+    }
 
     @Override
     public void onEnable() {

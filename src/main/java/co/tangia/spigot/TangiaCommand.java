@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 public class TangiaCommand implements CommandExecutor {
     // This method is called, when somebody uses our command
     public TangiaPlugin spigot;
-    private static final Logger LOGGER = LoggerFactory.getLogger(TangiaCommand.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(TangiaCommand.class.getCanonicalName());
     public TangiaCommand(TangiaPlugin spigot) {
         this.spigot = spigot;
     }

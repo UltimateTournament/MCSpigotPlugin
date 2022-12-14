@@ -1,6 +1,6 @@
 name: TangiaSpigot
 version: '${version}'
-main: co.tangia.spigot.TangiaSpigot
+main: co.tangia.spigot.TangiaPlugin
 api-version: 1.19
 prefix: TANGIA
 authors: [ Tangia ]
