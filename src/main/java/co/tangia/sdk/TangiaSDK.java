@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 
 public class TangiaSDK {
   public static final String PROD_URL = "https://api.tangia.co/";
-  public static final String STAGING_URL = "https://tangia.staging.ultimatearcade.io/";
+  public static final String STAGING_URL = "https://api.tangia-staging.co/";
 
   private String sessionKey;
   private EventPoller eventPoller = new EventPoller();
