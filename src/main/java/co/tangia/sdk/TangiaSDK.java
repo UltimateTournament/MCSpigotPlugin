@@ -65,7 +65,11 @@ public class TangiaSDK {
   }
 
   public void startEventPolling() {
-    eventPoller.start();
+    try {
+      eventPoller.start();
+    } catch (IllegalThreadStateException ex) {
+      LOGGER.info("ignoring double start of event loop");
+    }
   }
 
   public void stopEventPolling() {
@@ -188,6 +192,9 @@ public class TangiaSDK {
         Thread.sleep(sleepMS);
         return;
       }
+      // as the above is a long-poll we might hang there for long enough to miss a stop and a start, so better check twice
+      if (stopped)
+        return;
       var body = eventsResp.body();
       if (body == null || body.ActionExecutions == null || body.ActionExecutions.length == 0) {
         LOGGER.debug("no events");

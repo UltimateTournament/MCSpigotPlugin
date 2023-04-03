@@ -36,8 +36,20 @@ public class GameEventListener implements Listener {
     }
 
     @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        var player = event.getEntity();
+        spigot.holdEvents(player);
+    }
+
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        var player = event.getPlayer();
+        spigot.resumeEvents(player);
+    }
+
+    @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
+        var player = event.getPlayer();
         spigot.logout(player, false);
     }
 }

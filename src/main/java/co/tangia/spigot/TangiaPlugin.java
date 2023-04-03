@@ -12,58 +12,63 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public final class TangiaPlugin extends JavaPlugin {
-    public final String tangiaUrl = "STAGING".equals(System.getenv("TANGIA_ENV")) ? TangiaSDK.STAGING_URL : TangiaSDK.PROD_URL;
-    private static final Logger LOGGER = LoggerFactory.getLogger(TangiaPlugin.class.getCanonicalName());
-    public final Map<UUID, TangiaSDK> playerSDKs = new HashMap<>();
+  public final String tangiaUrl = "STAGING".equals(System.getenv("TANGIA_ENV")) ? TangiaSDK.STAGING_URL : TangiaSDK.PROD_URL;
+  private static final Logger LOGGER = LoggerFactory.getLogger(TangiaPlugin.class.getCanonicalName());
+  public final Map<UUID, TangiaSDK> playerSDKs = new HashMap<>();
 
-    static {
-        if (System.getenv("TANGIA_LOGS") == null) {
-            LOGGER.info("Disabling logging for Tangia. To re-enable set the env var TANGIA_LOGS=1");
-            try {
-                org.apache.logging.log4j.core.config.Configurator.setLevel("co.tangia", org.apache.logging.log4j.Level.ERROR);
-            } catch (Exception ex) {
-                LOGGER.error("failed to set log level", ex);
-            }
-        }
-    }
+  private static final String MOD_VERSION = "1.19.4";
 
-    @Override
-    public void onEnable() {
-        // Plugin startup logic
-        LOGGER.info("Tangia plugin starting");
-        this.getCommand("tangia").setExecutor(new TangiaCommand(this));
-        getServer().getPluginManager().registerEvents(new GameEventListener(this), this);
-        ModPersistence.load();
-    }
+  record EventReceival(InteractionEvent event, long receivedAt) {
 
-    @Override
-    public void onDisable() {
-        // Plugin shutdown logic
-        LOGGER.info("Tangia plugin stopping");
-    }
+  }
+  private final Map<UUID, Deque<EventReceival>> lastEvents = new HashMap<>();
 
-    public void login(Player player, String key) throws InvalidLoginException, IOException {
-        LOGGER.info("Spigot.login");
-        UUID playerID = player.getUniqueId();
-        TangiaSDK sdk = new TangiaSDK(this.tangiaUrl, "1.19.2", "MC Spigot", (errMsg)-> {
-            player.sendMessage("Your Tangia login expired");
-            logout(player, true);
-        }, (s, event)-> processEvent(player, s, event));
-        sdk.login(key);
-        synchronized (this.playerSDKs) {
-            if (this.playerSDKs.get(playerID) != null)
-                this.playerSDKs.get(playerID).stopEventPolling();
-            this.playerSDKs.put(playerID, sdk);
-        }
-        sdk.startEventPolling();
-        ModPersistence.data.sessions().put(player.getUniqueId(), new ModPersistenceData.PlayerSession(sdk.getSessionKey()));
-        ModPersistence.store();
+  static {
+    if (System.getenv("TANGIA_LOGS") == null) {
+      LOGGER.info("Disabling logging for Tangia. To re-enable set the env var TANGIA_LOGS=1");
+      try {
+        org.apache.logging.log4j.core.config.Configurator.setLevel("co.tangia", org.apache.logging.log4j.Level.ERROR);
+      } catch (Exception ex) {
+        LOGGER.error("failed to set log level", ex);
+      }
     }
+  }
+
+  @Override
+  public void onEnable() {
+    // Plugin startup logic
+    LOGGER.info("Tangia plugin starting");
+    this.getCommand("tangia").setExecutor(new TangiaCommand(this));
+    getServer().getPluginManager().registerEvents(new GameEventListener(this), this);
+    ModPersistence.load();
+  }
+
+  @Override
+  public void onDisable() {
+    // Plugin shutdown logic
+    LOGGER.info("Tangia plugin stopping");
+  }
+
+  public void login(Player player, String key) throws InvalidLoginException, IOException {
+    LOGGER.info("Spigot.login");
+    var playerID = player.getUniqueId();
+    var sdk = new TangiaSDK(this.tangiaUrl, MOD_VERSION, "MC Spigot", (errMsg) -> {
+      player.sendMessage("Your Tangia login expired");
+      logout(player, true);
+    }, (s, event) -> processEvent(player, s, event));
+    sdk.login(key);
+    synchronized (this.playerSDKs) {
+      if (this.playerSDKs.get(playerID) != null)
+        this.playerSDKs.get(playerID).stopEventPolling();
+      this.playerSDKs.put(playerID, sdk);
+    }
+    sdk.startEventPolling();
+    ModPersistence.data.sessions().put(player.getUniqueId(), new ModPersistenceData.PlayerSession(sdk.getSessionKey()));
+    ModPersistence.store();
+  }
 
   public void restoreSession(Player player, String sessionKey) {
     LOGGER.info("Spigot.restoreSession");
@@ -143,19 +148,55 @@ public final class TangiaPlugin extends JavaPlugin {
     }
   }
 
-    public void logout(Player player, boolean removeSession) {
-        UUID id = player.getUniqueId();
-        synchronized (playerSDKs) {
-            TangiaSDK sdk = playerSDKs.get(id);
-            if (sdk != null) {
-                sdk.stopEventPolling();
-                sdk.logout();
-                playerSDKs.remove(id);
-            }
-            if (removeSession) {
-                ModPersistence.data.sessions().remove(id);
-                ModPersistence.store();
-            }
-        }
+  public void logout(Player player, boolean removeSession) {
+    var id = player.getUniqueId();
+    synchronized (playerSDKs) {
+      var sdk = playerSDKs.get(id);
+      if (sdk != null) {
+        sdk.stopEventPolling();
+        sdk.logout();
+        playerSDKs.remove(id);
+      }
+      if (removeSession) {
+        ModPersistence.data.sessions().remove(id);
+        ModPersistence.store();
+      }
     }
+  }
+
+  public void holdEvents(Player player) {
+    var id = player.getUniqueId();
+    TangiaSDK sdk;
+    synchronized (playerSDKs) {
+      sdk = playerSDKs.get(id);
+    }
+    if (sdk == null) {
+      return;
+    }
+    sdk.stopEventPolling();
+  }
+
+  public void resumeEvents(Player player) {
+    var id = player.getUniqueId();
+    TangiaSDK sdk;
+    synchronized (playerSDKs) {
+      sdk = playerSDKs.get(id);
+    }
+    if (sdk == null) {
+      return;
+    }
+    Deque<EventReceival> events;
+    synchronized (lastEvents) {
+      events = lastEvents.get(id);
+      if (events != null) {
+        var now = System.currentTimeMillis();
+        for (var er : events) {
+          if (er.event.DeathReplaySecs > 0 && now - er.receivedAt < er.event.DeathReplaySecs * 1_000) {
+            processEvent(player, sdk, er.event);
+          }
+        }
+      }
+    }
+    sdk.startEventPolling();
+  }
 }
