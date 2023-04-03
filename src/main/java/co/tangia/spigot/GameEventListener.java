@@ -1,10 +1,12 @@
 package co.tangia.spigot;
 
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.slf4j.LoggerFactory;
 
 public class GameEventListener implements Listener {
     private final TangiaPlugin spigot;
@@ -12,6 +14,8 @@ public class GameEventListener implements Listener {
     public GameEventListener(TangiaPlugin spigot) {
         this.spigot = spigot;
     }
+
+    private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(GameEventListener.class.getCanonicalName());
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -22,9 +26,10 @@ public class GameEventListener implements Listener {
         ModPersistenceData.PlayerSession session = ModPersistence.data.sessions().get(id);
         if (session != null) {
             try {
-                spigot.login(event.getPlayer(), session.sessionToken());
+                spigot.restoreSession(event.getPlayer(), session.sessionToken());
                 event.getPlayer().sendMessage("We've logged you back into your Tangia account");
             } catch (Exception e) {
+                LOGGER.error("failed to use persisted session", e);
                 event.getPlayer().sendMessage("We couldn't log you back into your Tangia account!");
             }
         }

@@ -65,60 +65,83 @@ public final class TangiaPlugin extends JavaPlugin {
         ModPersistence.store();
     }
 
-    private void processEvent(Player p, TangiaSDK sdk, InteractionEvent e) {
-        // Process the interaction event
-        Gson gson = new Gson();
-        EventComponent event = gson.fromJson(e.Metadata, EventComponent.class);
-        Player player = Bukkit.getPlayer(p.getUniqueId()); // in case the callback gets called after player left
-        if (player == null) {
-            sdk.ackEventAsync(new EventResult(e.EventID, false, "player not in game"));
-            return;
-        }
-        try {
-            var delayAck = false;
-            if (event.commands != null) {
-                var firstCommand = true;
-                for (CommandComponent cmd : event.commands) {
-                    final var shouldAck = firstCommand;
-                    if (firstCommand) {
-                        firstCommand = false;
-                    }
-                    delayAck = true;
-                    cmd = new CommandComponent(cmd.command, e.BuyerName, player.getName(), cmd.delayTicks);
-                    System.out.println("Running command: " + cmd.getCommand());
-                    String commandString = cmd.getCommand();
-                    Bukkit.getScheduler().runTaskLater(this, () -> {
-                        var success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), commandString);
-                        if (success && shouldAck) {
-                            sdk.ackEventAsync(new EventResult(e.EventID, true, null));
-                        }
-                        if (!success) {
-                            LOGGER.warn("COMMAND FAILED: {}", commandString);
-                        }
-                    }, cmd.delayTicks);
-                }
-            }
-            if (event.messages != null) {
-                for (MessageComponent msg : event.messages) {
-                    String msgString = msg.message.replaceAll("\\$DISPLAYNAME", e.BuyerName).replaceAll("\\$PLAYERNAME", player.getName());
-                    System.out.println("Running message: " + msgString);
-                    boolean sendToAll = msg.toAllPlayers;
-                    Bukkit.getScheduler().runTaskLater(this, () -> {
-                        if (sendToAll) {
-                            Bukkit.broadcastMessage(msgString);
-                            return;
-                        }
-                        player.sendMessage(msgString);
-                    }, msg.delayTicks);
-                }
-            }
-            if (!delayAck) {
-                sdk.ackEventAsync(new EventResult(e.EventID, true, null));
-            }
-        } catch (Exception ex) {
-            sdk.ackEventAsync(new EventResult(e.EventID, false, "exception"));
-        }
+  public void restoreSession(Player player, String sessionKey) {
+    LOGGER.info("Spigot.restoreSession");
+    var playerID = player.getUniqueId();
+    var sdk = new TangiaSDK(this.tangiaUrl, MOD_VERSION, "MC Spigot", (errMsg) -> {
+      player.sendMessage("Your Tangia login expired");
+      logout(player, true);
+    }, (s, event) -> processEvent(player, s, event));
+    sdk.setSessionKey(sessionKey);
+    synchronized (this.playerSDKs) {
+      if (this.playerSDKs.get(playerID) != null)
+        this.playerSDKs.get(playerID).stopEventPolling();
+      this.playerSDKs.put(playerID, sdk);
     }
+    sdk.startEventPolling();
+  }
+
+  private void processEvent(Player p, TangiaSDK sdk, InteractionEvent e) {
+    // Process the interaction event
+    var gson = new Gson();
+    var event = gson.fromJson(e.Metadata, EventComponent.class);
+    var player = Bukkit.getPlayer(p.getUniqueId()); // in case the callback gets called after player left
+    if (player == null) {
+      sdk.ackEventAsync(new EventResult(e.EventID, false, "player not in game"));
+      return;
+    }
+    synchronized (lastEvents) {
+      var playerLastEvents = lastEvents.computeIfAbsent(p.getUniqueId(), k -> new LinkedList<>());
+      playerLastEvents.add(new EventReceival(e, System.currentTimeMillis()));
+      if (playerLastEvents.size() > 15) {
+        playerLastEvents.removeFirst();
+      }
+    }
+    try {
+      var delayAck = false;
+      if (event.commands != null) {
+        var firstCommand = true;
+        for (var cmd : event.commands) {
+          final var shouldAck = firstCommand;
+          if (firstCommand) {
+            firstCommand = false;
+          }
+          delayAck = true;
+          cmd = new CommandComponent(cmd.command, e.BuyerName, player.getName(), cmd.delayTicks);
+          System.out.println("Running command: " + cmd.getCommand());
+          var commandString = cmd.getCommand();
+          Bukkit.getScheduler().runTaskLater(this, () -> {
+            var success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), commandString);
+            if (success && shouldAck) {
+              sdk.ackEventAsync(new EventResult(e.EventID, true, null));
+            }
+            if (!success) {
+              LOGGER.warn("COMMAND FAILED: {}", commandString);
+            }
+          }, cmd.delayTicks);
+        }
+      }
+      if (event.messages != null) {
+        for (var msg : event.messages) {
+          var msgString = msg.message.replaceAll("\\$DISPLAYNAME", e.BuyerName).replaceAll("\\$PLAYERNAME", player.getName());
+          System.out.println("Running message: " + msgString);
+          boolean sendToAll = msg.toAllPlayers;
+          Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (sendToAll) {
+              Bukkit.broadcastMessage(msgString);
+              return;
+            }
+            player.sendMessage(msgString);
+          }, msg.delayTicks);
+        }
+      }
+      if (!delayAck) {
+        sdk.ackEventAsync(new EventResult(e.EventID, true, null));
+      }
+    } catch (Exception ex) {
+      sdk.ackEventAsync(new EventResult(e.EventID, false, "exception"));
+    }
+  }
 
     public void logout(Player player, boolean removeSession) {
         UUID id = player.getUniqueId();
