@@ -144,63 +144,26 @@ public class TangiaSDK {
     @Override
     public void run() {
       super.run();
-      try {
-        while (!stopped) {
+      while (!stopped) {
+        try {
           pollEvents();
+        } catch (Exception ex) {
+          LOGGER.error("exception during polling, retrying", ex);
+          try {
+            Thread.sleep(2000);
+          } catch (Throwable t) {
+          }
         }
-      } catch (InterruptedException ex) {
-        LOGGER.warn("got interrupted, will stop event polling");
       }
     }
 
     private void pollEvents() throws InterruptedException {
-      while (true) {
-        var event = eventAckQueue.poll();
-        if (event == null)
-          break;
-        try {
-          if (event.Executed) {
-            ackEvent(event.EventID);
-          } else {
-            nackEvent(event.EventID);
-          }
-        } catch (Exception e) {
-          LOGGER.warn("couldn't ack events: " + e);
-        }
-      }
-      var eventsCall = api.pollEvents(sessionKey);
-      Response<InteractionEventsResp> eventsResp = null;
-      try {
-        eventsResp = execWithRetries(eventsCall);
-      } catch (IOException e) {
-        LOGGER.warn("error when polling events: " + e.getMessage());
-      }
-      if (eventsResp == null || !eventsResp.isSuccessful()) {
-        LOGGER.warn("couldn't get events: {}", eventsResp);
-        if (eventsResp != null && eventsResp.code() == 401) {
-          LOGGER.warn("login invalid. Stopping event polling");
-          this.stopPolling();
-          if (sessionFailCallback != null) {
-            sessionFailCallback.accept("session key got unauthorized");
-          }
-          return;
-        }
-        long sleepMS = 1000;
-        if (eventsResp != null && eventsResp.code() == 429) {
-          sleepMS = 3000;
-        }
-        Thread.sleep(sleepMS);
+      handleAckQueue();
+
+      var body = pollEventQueue();
+      if (body == null)
         return;
-      }
-      // as the above is a long-poll we might hang there for long enough to miss a stop and a start, so better check twice
-      if (stopped)
-        return;
-      var body = eventsResp.body();
-      if (body == null || body.ActionExecutions == null || body.ActionExecutions.length == 0) {
-        LOGGER.debug("no events");
-        Thread.sleep(50);
-        return;
-      }
+
       var gotNewEvents = false;
       for (var ae : body.ActionExecutions) {
         // we'll receive events until they get ack'ed/rejected
@@ -218,6 +181,60 @@ public class TangiaSDK {
       // as the long-polling won't do it for us
       if (body.ActionExecutions.length > 0 && !gotNewEvents) {
         Thread.sleep(1000);
+      }
+    }
+
+    private InteractionEventsResp pollEventQueue() throws InterruptedException {
+      var eventsCall = api.pollEvents(sessionKey);
+      Response<InteractionEventsResp> eventsResp = null;
+      try {
+        eventsResp = execWithRetries(eventsCall);
+      } catch (IOException e) {
+        LOGGER.warn("error when polling events: " + e.getMessage());
+      }
+      if (eventsResp == null || !eventsResp.isSuccessful()) {
+        LOGGER.warn("couldn't get events: {}", eventsResp);
+        if (eventsResp != null && eventsResp.code() == 401) {
+          LOGGER.warn("login invalid. Stopping event polling");
+          this.stopPolling();
+          if (sessionFailCallback != null) {
+            sessionFailCallback.accept("session key got unauthorized");
+          }
+          return null;
+        }
+        long sleepMS = 1000;
+        if (eventsResp != null && eventsResp.code() == 429) {
+          sleepMS = 3000;
+        }
+        Thread.sleep(sleepMS);
+        return null;
+      }
+      // as the above is a long-poll we might hang there for long enough to miss a stop and a start, so better check twice
+      if (stopped)
+        return null;
+      var body = eventsResp.body();
+      if (body == null || body.ActionExecutions == null || body.ActionExecutions.length == 0) {
+        LOGGER.debug("no events");
+        Thread.sleep(50);
+        return null;
+      }
+      return body;
+    }
+
+    private void handleAckQueue() {
+      while (true) {
+        var event = eventAckQueue.poll();
+        if (event == null)
+          break;
+        try {
+          if (event.Executed) {
+            ackEvent(event.EventID);
+          } else {
+            nackEvent(event.EventID);
+          }
+        } catch (Exception e) {
+          LOGGER.warn("couldn't ack events: " + e);
+        }
       }
     }
 

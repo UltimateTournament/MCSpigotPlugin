@@ -152,10 +152,12 @@ public final class TangiaPlugin extends JavaPlugin {
     var id = player.getUniqueId();
     synchronized (playerSDKs) {
       var sdk = playerSDKs.get(id);
+      playerSDKs.remove(id);
       if (sdk != null) {
         sdk.stopEventPolling();
-        sdk.logout();
-        playerSDKs.remove(id);
+        if (removeSession) {
+          sdk.logout();
+        }
       }
       if (removeSession) {
         ModPersistence.data.sessions().remove(id);
@@ -166,14 +168,13 @@ public final class TangiaPlugin extends JavaPlugin {
 
   public void holdEvents(Player player) {
     var id = player.getUniqueId();
-    TangiaSDK sdk;
     synchronized (playerSDKs) {
-      sdk = playerSDKs.get(id);
+      var sdk = playerSDKs.get(id);
+      if (sdk == null) {
+        return;
+      }
+      sdk.stopEventPolling();
     }
-    if (sdk == null) {
-      return;
-    }
-    sdk.stopEventPolling();
   }
 
   public void resumeEvents(Player player) {
