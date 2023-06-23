@@ -19,7 +19,7 @@ public final class TangiaPlugin extends JavaPlugin {
   private static final Logger LOGGER = LoggerFactory.getLogger(TangiaPlugin.class.getCanonicalName());
   public final Map<UUID, TangiaSDK> playerSDKs = new HashMap<>();
 
-  private static final String MOD_VERSION = "1.19.4";
+  private static final String MOD_VERSION = "1.20.1";
 
   record EventReceival(InteractionEvent event, long receivedAt) {
 
