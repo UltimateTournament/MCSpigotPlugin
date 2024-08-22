@@ -24,6 +24,7 @@ public final class TangiaPlugin extends JavaPlugin {
   record EventReceival(InteractionEvent event, long receivedAt) {
 
   }
+
   private final Map<UUID, Deque<EventReceival>> lastEvents = new HashMap<>();
 
   static {
@@ -58,7 +59,7 @@ public final class TangiaPlugin extends JavaPlugin {
     var sdk = new TangiaSDK(this.tangiaUrl, MOD_VERSION, "MC Spigot", (errMsg) -> {
       player.sendMessage("Your Tangia login expired");
       logout(player, true);
-    }, (s, event) -> processEvent(player, s, event));
+    }, (s, event) -> processEvent(player, s, event, false));
     sdk.login(key);
     synchronized (this.playerSDKs) {
       if (this.playerSDKs.get(playerID) != null)
@@ -76,7 +77,7 @@ public final class TangiaPlugin extends JavaPlugin {
     var sdk = new TangiaSDK(this.tangiaUrl, MOD_VERSION, "MC Spigot", (errMsg) -> {
       player.sendMessage("Your Tangia login expired");
       logout(player, true);
-    }, (s, event) -> processEvent(player, s, event));
+    }, (s, event) -> processEvent(player, s, event, false));
     sdk.setSessionKey(sessionKey);
     synchronized (this.playerSDKs) {
       if (this.playerSDKs.get(playerID) != null)
@@ -86,7 +87,7 @@ public final class TangiaPlugin extends JavaPlugin {
     sdk.startEventPolling();
   }
 
-  private void processEvent(Player p, TangiaSDK sdk, InteractionEvent e) {
+  private void processEvent(Player p, TangiaSDK sdk, InteractionEvent e, boolean isReplaying) {
     // Process the interaction event
     var gson = new Gson();
     var event = gson.fromJson(e.Metadata, EventComponent.class);
@@ -95,11 +96,13 @@ public final class TangiaPlugin extends JavaPlugin {
       sdk.ackEventAsync(new EventResult(e.EventID, false, "player not in game"));
       return;
     }
-    synchronized (lastEvents) {
-      var playerLastEvents = lastEvents.computeIfAbsent(p.getUniqueId(), k -> new LinkedList<>());
-      playerLastEvents.add(new EventReceival(e, System.currentTimeMillis()));
-      if (playerLastEvents.size() > 15) {
-        playerLastEvents.removeFirst();
+    if (!isReplaying) {
+      synchronized (lastEvents) {
+        var playerLastEvents = lastEvents.computeIfAbsent(p.getUniqueId(), k -> new LinkedList<>());
+        playerLastEvents.add(new EventReceival(e, System.currentTimeMillis()));
+        if (playerLastEvents.size() > 15) {
+          playerLastEvents.removeFirst();
+        }
       }
     }
     try {
@@ -186,15 +189,18 @@ public final class TangiaPlugin extends JavaPlugin {
     if (sdk == null) {
       return;
     }
-    Deque<EventReceival> events;
+    ArrayList<EventReceival> eventsToReplay = null;
     synchronized (lastEvents) {
-      events = lastEvents.get(id);
+      var events = lastEvents.get(id);
       if (events != null) {
-        var now = System.currentTimeMillis();
-        for (var er : events) {
-          if (er.event.DeathReplaySecs > 0 && now - er.receivedAt < er.event.DeathReplaySecs * 1_000) {
-            processEvent(player, sdk, er.event);
-          }
+        eventsToReplay = new ArrayList<>(events);
+      }
+    }
+    if (eventsToReplay != null) {
+      var now = System.currentTimeMillis();
+      for (var er : eventsToReplay) {
+        if (er.event.DeathReplaySecs > 0 && now - er.receivedAt < er.event.DeathReplaySecs * 1_000) {
+          processEvent(player, sdk, er.event, true);
         }
       }
     }

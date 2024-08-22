@@ -9,47 +9,59 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.slf4j.LoggerFactory;
 
 public class GameEventListener implements Listener {
-    private final TangiaPlugin spigot;
+  private final TangiaPlugin spigot;
 
-    public GameEventListener(TangiaPlugin spigot) {
-        this.spigot = spigot;
+  public GameEventListener(TangiaPlugin spigot) {
+    this.spigot = spigot;
+  }
+
+  private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(GameEventListener.class.getCanonicalName());
+
+  @EventHandler
+  public void onPlayerJoin(PlayerJoinEvent event) {
+    var id = event.getPlayer().getUniqueId();
+    if (spigot.playerSDKs.get(id) != null) {
+      return;
     }
-
-    private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(GameEventListener.class.getCanonicalName());
-
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        var id = event.getPlayer().getUniqueId();
-        if (spigot.playerSDKs.get(id) != null) {
-            return;
-        }
-        ModPersistenceData.PlayerSession session = ModPersistence.data.sessions().get(id);
-        if (session != null) {
-            try {
-                spigot.restoreSession(event.getPlayer(), session.sessionToken());
-                event.getPlayer().sendMessage("We've logged you back into your Tangia account");
-            } catch (Exception e) {
-                LOGGER.error("failed to use persisted session", e);
-                event.getPlayer().sendMessage("We couldn't log you back into your Tangia account!");
-            }
-        }
+    ModPersistenceData.PlayerSession session = ModPersistence.data.sessions().get(id);
+    if (session != null) {
+      try {
+        spigot.restoreSession(event.getPlayer(), session.sessionToken());
+        event.getPlayer().sendMessage("We've logged you back into your Tangia account");
+      } catch (Exception e) {
+        LOGGER.error("failed to use persisted session", e);
+        event.getPlayer().sendMessage("We couldn't log you back into your Tangia account!");
+      }
     }
+  }
 
-    @EventHandler
-    public void onPlayerDeath(PlayerDeathEvent event) {
-        var player = event.getEntity();
-        spigot.holdEvents(player);
+  @EventHandler
+  public void onPlayerDeath(PlayerDeathEvent event) {
+    try {
+      var player = event.getEntity();
+      spigot.holdEvents(player);
+    } catch (Exception ex) {
+      LOGGER.error("failed to process onPlayerDeath", ex);
     }
+  }
 
-    @EventHandler
-    public void onPlayerRespawn(PlayerRespawnEvent event) {
-        var player = event.getPlayer();
-        spigot.resumeEvents(player);
+  @EventHandler
+  public void onPlayerRespawn(PlayerRespawnEvent event) {
+    try {
+      var player = event.getPlayer();
+      spigot.resumeEvents(player);
+    } catch (Exception ex) {
+      LOGGER.error("failed to process onPlayerRespawn", ex);
     }
+  }
 
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        var player = event.getPlayer();
-        spigot.logout(player, false);
+  @EventHandler
+  public void onPlayerQuit(PlayerQuitEvent event) {
+    try {
+      var player = event.getPlayer();
+      spigot.logout(player, false);
+    } catch (Exception ex) {
+      LOGGER.error("failed to process onPlayerQuit", ex);
     }
+  }
 }
