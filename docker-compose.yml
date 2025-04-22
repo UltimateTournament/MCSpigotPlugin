@@ -8,7 +8,7 @@ services:
     environment:
       TANGIA_LOGS: "1"
       EULA: "TRUE"
-      VERSION: "1.21.4"
+      VERSION: "1.20.1"
       TYPE: PAPER
       MEMORY: ""
       JVM_XX_OPTS: "-XX:MaxRAMPercentage=75"
